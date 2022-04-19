@@ -41,13 +41,13 @@ get_metadata_filters <- function(tab, row, col) {
 }
 
 ui <- fillPage(
-  column(8,
+  column(6,
          reactableOutput("demoTab")
   ),
   
-  column(4,
-         plotOutput("AEBySubGroup"),
-         plotOutput("LabsBySubGroup")
+  column(6,
+         plotOutput("AEBySubGroup", height = "300px"),
+         plotOutput("LabsBySubGroup", height = "300px")
   )
 )
 
