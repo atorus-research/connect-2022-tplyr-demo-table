@@ -1,13 +1,12 @@
 library(shiny)
 library(reactable)
 library(magrittr)
-library(ggplot2)
-library(safetyData)
 library(Tplyr)
 library(dplyr)
 library(purrr)
 library(rlang)
-adsl <- adam_adsl %>%
+
+adsl <- haven::read_xpt(url("https://github.com/phuse-org/TestDataFactory/raw/main/Updated/TDF_ADaM/adsl.xpt")) %>%
   mutate(
     TRT01A = ordered(TRT01A, c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose"))
   )
@@ -28,30 +27,15 @@ b_tab <- build(tab, metadata = TRUE) %>%
   select(row_id, starts_with("row"), starts_with("var")) %>%
   relocate(row_id, row_label1, row_label2, var1_Placebo, `var1_Xanomeline Low Dose`, `var1_Xanomeline High Dose`)
 
-
-get_metadata_filters <- function(tab, row, col) {
-  req(row(), col())
-  tmp <- tab$metadata %>%
-    filter(row_id == row()) %>%
-    select(col()) %>%
-    extract2(1) %>%
-    extract2(1)
-  
-  tmp
-}
-
 ui <- fillPage(
   column(6,
          reactableOutput("demoTab")
   ),
   
   column(6,
-         plotOutput("AEBySubGroup", height = "200px"),
-         plotOutput("LabsBySubGroup", height = "200px")
+         reactableOutput("demoList")
   )
 )
-
-
 
 server <- function(input, output) {
   
@@ -80,59 +64,21 @@ server <- function(input, output) {
     )
   )
   
-  meta_filters <- reactive({
+  sub_data <- reactive({
     req(row, col)
-    get_metadata_filters(tab, row, col)
-  })
-  
-  f_usubjid <- reactive({
-    req(meta_filters)
-    tmp <- tab$target %>%
-      filter(!!!meta_filters()$filters) %>%
-      extract2("USUBJID")
-    
+    tmp <- get_meta_subset(tab, row(), col())
     tmp
   })
   
-  f_tab_ae <- reactive({
-    req(f_usubjid())
-    adam_adae %>%
-      filter(USUBJID %in% f_usubjid(), AEBODSYS %in% c("GENERAL DISORDERS AND ADMINISTRATION SITE CONDITIONS",
-                                                       "SKIN AND SUBCUTANEOUS TISSUE DISORDERS",
-                                                       "CARDIAC DISORDERS",
-                                                       "NERVOUS SYSTEM DISORDERS"))
+  output$demoList<- renderReactable({
+    req(sub_data())
+    reactable(
+      sub_data(),
+      sortable = FALSE,
+      height = 450,
+      defaultPageSize = 11,
+    )
   })
-  
-  f_tab_labs <- reactive({
-    req(f_usubjid())
-    adam_adlbc %>%
-      filter(USUBJID %in% f_usubjid(), PARAM %in% c("Protein (g/L)", "Albumin (g/L)"))
-  })
-  
-  output$AEBySubGroup <- renderPlot({
-    req(f_tab_ae())
-    f_tab_ae() %>%
-      ggplot(aes(x = AEBODSYS, fill = AEBODSYS)) +
-      geom_bar() +
-      theme(
-        legend.position = "right",
-        axis.ticks.x = element_blank(),
-        axis.text.x = element_blank()
-      ) +
-      labs(
-        title = "Selected AEs by subgroup",
-        y = "Frequency of AEs",
-        x = "Body System"
-      )
-  })
-  
-  output$LabsBySubGroup <- renderPlot({
-    req(f_tab_labs())
-    f_tab_labs() %>%
-      ggplot(aes(y = AVAL, x = ADY, group = PARAM, color = PARAM)) +
-      geom_smooth()
-  })
-  
 }
 
 # Run the application 
